@@ -1,0 +1,51 @@
+Name: Lateral Movement Path Identified
+  description: Detects potential lateral movement paths to sensitive accounts, including privilege flagging.
+  severity: High
+  tactics:
+    - LateralMovement
+    - PrivilegeEscalation
+  techniques:
+    - T1021  # Remote Services
+    - T1078  # Valid Accounts
+  queryFrequency: PT10M        
+  queryPeriod: PT30M         
+  triggerOperator: GreaterThan
+  triggerThreshold: 0
+ suppressionDuration: PT1H
+  suppressionEnabled: false
+  incidentConfiguration:
+    createIncident: true
+    groupingConfiguration:
+      enabled: true
+      lookbackDuration: PT1H
+      matchingMethod: AllEntities
+  entityMappings:
+    - entityType: Account
+      fieldMappings:
+        - identifier: FullName
+          columnName: LateralMovementPathToSensitiveAccount
+    - entityType: Account
+      fieldMappings:
+        - identifier: FullName
+          columnName: FromAccount
+    - entityType: Account
+      fieldMappings:
+        - identifier: FullName
+          columnName: ActorAccount
+    - entityType: Host
+      fieldMappings:
+        - identifier: HostName
+          columnName: DeviceName
+  Query:
+    IdentityDirectoryEvents
+    | where ActionType == "Potential lateral movement path identified"
+    | extend AdditionalInfo = parse_json(AdditionalFields)
+    | extend LateralMovementPathToSensitiveAccount = AdditionalFields.['ACTOR.ACCOUNT'],
+             FromAccount = AdditionalFields.['FROM.ACCOUNT']
+    | extend IsPrivileged = iff(LateralMovementPathToSensitiveAccount has_any ("admin", "svc"), true, false)
+    | extend ActorAccount = tostring(InitiatedBy.user.userPrincipalName),
+             ActorIP = tostring(InitiatedBy.user.ipAddress),
+             DeviceOS = tostring(AdditionalFields.TargetComputerOperatingSystem),
+             AccountSid = tostring(AdditionalFields.TargetAccountSid)
+    | project Timestamp, LateralMovementPathToSensitiveAccount, FromAccount, DeviceName, DeviceOS, AccountName, AccountDomain, ActorAccount, ActorIP, AccountSid, IsPrivileged
+    | order by Timestamp desc
