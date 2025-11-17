@@ -1,0 +1,18 @@
+Description: Detects files created on drives other than C:, excluding script files (.ps1, .bat, .cmd). This may indicate lateral movement or data staging.
+severity: Medium
+
+tactic: Persistence
+      : Lateral Movement
+ 
+technique: T1074 # Data Staged
+         : T1021 # Remote Services
+         : T1105 # Ingress Tool Transfer
+
+Query: 
+  DeviceFileEvents
+  | where ActionType == "FileCreated"
+  | extend extension = extract(@".*(\..*)$", 1, FileName)
+  | where extension !in (".ps1", ".bat", ".cmd")
+  | extend DriveLetterOrShare = split(FolderPath, ':')[0]
+  | where DriveLetterOrShare != 'C'
+  | project tostring(DriveLetterOrShare), FolderPath, FileName, DeviceId, DeviceName, ReportId, Timestamp, ShareName, IsAzureInfoProtectionApplied, SensitivityLabel, SensitivitySubLabel, InitiatingProcessFileName, InitiatingProcessAccountUpn, InitiatingProcessCommandLine
