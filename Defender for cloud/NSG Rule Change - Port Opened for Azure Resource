@@ -1,0 +1,29 @@
+Description: Detects when a Network Security Group (NSG) rule is modified to open a port for an Azure resource.
+
+tactics:
+  - "Defense Evasion"
+  - "Initial Access"
+techniques:
+  - "T1021: Remote Services"
+  - "T1078: Valid Accounts"
+
+Query: |
+  AzureActivity
+  | where TimeGenerated > ago(30d)
+  | where OperationNameValue in ("Microsoft.Network/networkSecurityGroups/securityRules/write", 
+                                  "Microsoft.Network/networkSecurityGroups/write",
+                                  "Microsoft.Network/networkSecurityGroups/securityRules/delete")
+  | where ActivityStatusValue == "Succeeded"
+  | extend Actor = Caller, IPAddress = CallerIpAddress
+  | extend RuleDetails = tostring(parse_json(Properties).securityRule)
+  | extend PortOpened = tostring(parse_json(Properties).securityRule.properties.destinationPortRange)
+  | where isnotempty(PortOpened)
+  | project TimeGenerated,
+            ResourceGroup,
+            ResourceId,
+            Actor,
+            IPAddress,
+            OperationNameValue,
+            PortOpened,
+            RuleDetails
+  | order by TimeGenerated desc
