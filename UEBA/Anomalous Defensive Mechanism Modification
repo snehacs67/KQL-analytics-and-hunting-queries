@@ -1,0 +1,28 @@
+Description: detects unusual spikes in Entra ID security policy modifications compared to historical behavior.This helps identify potential attempts to weaken security controls such as MFA, conditional access, or authentication policies.
+
+tactics:
+  - DefenseEvasion
+  - Impact
+
+techniques:
+  - T1562: Impair Defenses
+  - T1078: Valid Accounts
+
+Query: 
+  AuditLogs
+  | where TimeGenerated > ago(7d)
+  | where OperationName in ("Update policy", "Update authentication method policy", "Update conditional access policy")
+  | extend ActorUPN = tostring(InitiatedBy.user.userPrincipalName),
+           PolicyName = tostring(TargetResources[0].displayName),
+           ActivityType = OperationName
+  | summarize RecentCount = count() by ActorUPN, bin(TimeGenerated, 1h)
+  | join kind=inner (
+      AuditLogs
+      | where TimeGenerated > ago(30d)
+      | where OperationName in ("Update policy", "Update authentication method policy", "Update conditional access policy")
+      | summarize BaselineAvg = avg(count()) by ActorUPN
+  ) on ActorUPN
+  | where RecentCount > (BaselineAvg * 3)
+  | project TimeGenerated, ActorUPN, PolicyName, RecentCount, BaselineAvg, ActivityType
+  | order by RecentCount desc
+
