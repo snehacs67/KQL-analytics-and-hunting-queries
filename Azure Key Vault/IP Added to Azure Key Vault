@@ -1,0 +1,22 @@
+Description: Detects when an IP is added to an Azure Key Vault access policy.
+  
+tactics:
+  - "Defense Evasion"
+  - "Persistence"
+techniques:
+  - "T1562: Impair Defenses"
+  - "T1078: Valid Accounts"
+
+Query:
+  AzureDiagnostics
+  | where ResourceType == "VAULTS"
+  | where OperationName == "VaultPatch"
+  | where ResultType == "Success"
+  | where isnotempty(addedIpRule_Value_s)
+  | project
+      TimeGenerated,
+      VaultName = Resource,
+      SubscriptionId,
+      IPAddressofActor = CallerIPAddress,
+      Actor = identity_claim_http_schemas_xmlsoap_org_ws_2005_05_identity_claims_upn_s,
+      IPRangeAdded = addedIpRule_Value_s
