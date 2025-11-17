@@ -1,13 +1,17 @@
 name: NTLM Lateral Movement Detection
 description: Detects successful NTLM logons with credential validation across multiple devices in the last 7 days. Possible lateral movement or NTLM relay attack.
+triggerOperator: GreaterThan
+triggerThreshold: 5
+severity: High
+
 tactics:
   - LateralMovement
 techniques:
   - T1075 # Pass-the-Hash
   - T1550.002 # NTLM Relay
-triggerOperator: GreaterThan
-triggerThreshold: 5
-severity: High
+
+suppressionEnabled: true
+suppressionDuration: 1h
 entityMappings:
   - entityType: Account
     fieldMappings:
