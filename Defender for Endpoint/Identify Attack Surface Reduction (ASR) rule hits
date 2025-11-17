@@ -1,0 +1,14 @@
+Description: This query identifies Attack Surface Reduction (ASR) rule hits over the last 15 days
+
+Query: 
+DeviceEvents
+| where TimeGenerated > ago(15d)
+| where ActionType startswith "Asr"                     // ASR-related actions
+| where isnotempty(InitiatingProcessCommandLine)        // Ensure command line exists
+| project TimeGenerated, DeviceName, AccountName, ActionType, InitiatingProcessCommandLine
+| summarize ['ASR Hit Count'] = count(),
+            Devices = make_set(DeviceName),
+            Accounts = make_set(AccountName),
+            Timestamps = make_set(TimeGenerated)
+    by ActionType, InitiatingProcessCommandLine
+| sort by ['ASR Hit Count'] desc
