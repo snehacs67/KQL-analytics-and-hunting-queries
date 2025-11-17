@@ -1,0 +1,27 @@
+Description: Detects unusual spikes in Entra ID account creation activity compared to historical behavior. 
+
+tactics:
+  - PrivilegeEscalation
+  - DefenseEvasion
+
+techniques:
+  - T1078: Valid Accounts
+  - T1098: Account Manipulation
+
+Query: |
+  AuditLogs
+  | where TimeGenerated > ago(7d)
+  | where OperationName == "Add user"
+  | extend ActorUPN = tostring(InitiatedBy.user.userPrincipalName),
+           TargetUPN = tostring(TargetResources[0].userPrincipalName),
+           ActivityType = OperationName
+  | summarize RecentCount = count() by ActorUPN, bin(TimeGenerated, 1h)
+  | join kind=inner (
+      AuditLogs
+      | where TimeGenerated > ago(30d)
+      | where OperationName == "Add user"
+      | summarize BaselineAvg = avg(count()) by ActorUPN
+  ) on ActorUPN
+  | where RecentCount > (BaselineAvg * 3)
+  | project TimeGenerated, ActorUPN, RecentCount, BaselineAvg, ActivityType
+  | order by RecentCount desc
