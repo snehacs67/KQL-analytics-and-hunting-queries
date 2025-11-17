@@ -1,0 +1,16 @@
+Description: Detects when three or more devices block inbound connections from the same Remote IP within a 30-minute window, which may indicate scanning or attack attempts.
+severity: Medium
+
+ tactic: Reconnaissance
+       : Lateral Movement
+ technique: T1046 # Network Service Scanning
+          : T1021 # Remote Services
+
+Query: 
+  DeviceEvents
+  | where ActionType == "FirewallInboundConnectionBlocked"
+  | summarize
+      ['Count of Devices'] = dcount(DeviceName),
+      ['List of Devices'] = make_set(DeviceName)
+      by RemoteIP, bin(TimeGenerated, 30m)
+  | where ['Count of Devices'] >= 3
