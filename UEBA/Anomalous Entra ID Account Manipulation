@@ -1,0 +1,28 @@
+Description: Detects unusual spikes in Entra ID account or role management activities compared to historical behavior, This helps identify mass account changes that deviate from normal patterns.
+
+tactics:
+  - PrivilegeEscalation
+  - DefenseEvasion
+
+techniques:
+  - T1078: Valid Accounts
+  - T1098: Account Manipulation
+
+Query: |
+  AuditLogs
+  | where TimeGenerated > ago(7d)
+  | where Category == "UserManagement" or Category == "RoleManagement"
+  | extend ActorUPN = tostring(InitiatedBy.user.userPrincipalName),
+           TargetUPN = tostring(TargetResources[0].userPrincipalName),
+           Operation = OperationName
+  | summarize ActivityCount = count() by ActorUPN, bin(TimeGenerated, 1h)
+  | join kind=inner (
+      AuditLogs
+      | where TimeGenerated > ago(30d)
+      | where Category == "UserManagement" or Category == "RoleManagement"
+      | summarize BaselineAvg = avg(count()) by ActorUPN
+  ) on ActorUPN
+  | where ActivityCount > (BaselineAvg * 3)
+  | project TimeGenerated, ActorUPN, ActivityCount, BaselineAvg, Operation
+  | order by ActivityCount desc
+
