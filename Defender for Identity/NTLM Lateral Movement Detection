@@ -1,0 +1,31 @@
+name: NTLM Lateral Movement Detection
+description: Detects successful NTLM logons with credential validation across multiple devices in the last 7 days. Possible lateral movement or NTLM relay attack.
+tactics:
+  - LateralMovement
+techniques:
+  - T1075 # Pass-the-Hash
+  - T1550.002 # NTLM Relay
+triggerOperator: GreaterThan
+triggerThreshold: 5
+severity: High
+entityMappings:
+  - entityType: Account
+    fieldMappings:
+      - identifier: FullName
+        columnName: AccountName
+  - entityType: Host
+    fieldMappings:
+      - identifier: HostName
+        columnName: DeviceName
+Query: 
+  IdentityLogonEvents
+  | where TimeGenerated > ago(7d)
+  | where ActionType == "LogonSuccess"
+  | where AuthenticationProtocol =~ "NTLM"
+  | where LogonType == "Credentials validation"
+  | summarize 
+      TargetDeviceList = make_set(DestinationDeviceName),
+      TargetDeviceCount = dcount(DestinationDeviceName),
+      SourceIPList = make_set(IPAddress)
+      by AccountName, DeviceName
+  | sort by TargetDeviceCount desc
