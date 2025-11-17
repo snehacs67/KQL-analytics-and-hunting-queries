@@ -1,0 +1,36 @@
+Description: Detects PowerShell processes initiated by non-system accounts that connect from private IPs to public IPs, which may indicate malicious activity or C2 communication.
+severity: High
+
+  tactic: Execution
+        : Command and Control
+technique: T1059.001 # PowerShell
+         : T1071 # Application Layer Protocol
+         : T1105 # Ingress Tool Transfer
+
+Query: 
+  DeviceNetworkEvents
+  | project
+      TimeGenerated,
+      InitiatingProcessAccountName,
+      InitiatingProcessCommandLine,
+      DeviceName,
+      LocalIPType,
+      LocalIP,
+      RemoteIPType,
+      RemotePort,
+      RemoteIP,
+      RemoteUrl
+  | where InitiatingProcessAccountName != "system"
+  | where InitiatingProcessAccountName != "local service"
+  | where InitiatingProcessCommandLine contains "powershell"
+  | where LocalIPType == "Private"
+  | where RemoteIPType == "Public"
+  | project
+      TimeGenerated,
+      DeviceName,
+      InitiatingProcessAccountName,
+      InitiatingProcessCommandLine,
+      LocalIP,
+      RemoteIP,
+      RemotePort,
+      RemoteUrl
