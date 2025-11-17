@@ -1,0 +1,27 @@
+Description: This query identifies devices that became non-compliant in the last 24 hours, retrieves their latest Intune record from the past 7 days, and adds useful context such as OS version, compliance state, user details, and device ID.
+
+tactics:
+  - InitialAccess
+  - DefenseEvasion
+
+techniques:
+  - T1078: Valid Accounts
+  - T1562: Impair Defenses
+
+Query: 
+  let complianceWindow = 1d;
+  let lookupWindow = 7d;
+  let devices =
+      AuditLogs
+      | where TimeGenerated > ago(complianceWindow)
+      | where OperationName == "Device no longer compliant"
+      | extend DeviceName = tostring(TargetResources[0].displayName),
+               InitiatingUser = tostring(InitiatedBy.user.userPrincipalName),
+               OperationTime = TimeGenerated
+      | distinct DeviceName, InitiatingUser, OperationTime;
+  IntuneDevices
+  | where TimeGenerated > ago(lookupWindow)
+  | summarize arg_max(TimeGenerated, *) by DeviceName
+  | where DeviceName in (devices)
+  | project DeviceName, DeviceId, OSVersion, ComplianceState, UserPrincipalName, TimeGenerated
+  | order by TimeGenerated desc
