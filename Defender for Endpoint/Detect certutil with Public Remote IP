@@ -1,0 +1,15 @@
+Description: Identifies usage of certutil connecting to public IP addresses, which may indicate file download or C2 activity.
+severity: High
+
+  tactic: Command and Control
+        : Defense Evasion
+
+  technique: T1105 # Ingress Tool Transfer
+           : T1036 # Masquerading
+
+Query: 
+  DeviceNetworkEvents
+  | where TimeGenerated > ago(7d)
+  | where InitiatingProcessCommandLine contains "certutil"
+  | where RemoteIPType == "Public"
+  | project TimeGenerated, DeviceName, InitiatingProcessAccountName, InitiatingProcessCommandLine, LocalIPType, LocalIP, RemoteIPType, RemoteIP, RemoteUrl, RemotePort
