@@ -1,0 +1,37 @@
+Description: Identifies a match in DeviceFileEvents Event data from any FileHash IOC from TI
+
+tactics:
+  - CommandAndControl
+relevantTechniques:
+  - T1071
+
+Query: 
+  let dt_lookBack = 1h;
+  let ioc_lookBack = 14d;
+  let DeviceFileEvents_ = (union
+  (DeviceFileEvents | where TimeGenerated > ago(dt_lookBack) | where isnotempty(SHA1) | extend FileHashValue = SHA1),
+  (DeviceFileEvents | where TimeGenerated > ago(dt_lookBack) | where isnotempty(SHA256) | extend FileHashValue = SHA256));
+  let Hashes = DeviceFileEvents_ | distinct FileHashValue;
+  ThreatIntelIndicators
+  //extract key part of kv pair
+        | extend IndicatorType = replace(@"\[|\]|\""", "", tostring(split(ObservableKey, ":", 0)))
+        | where IndicatorType == "file"
+        | extend FileHashType = replace("'", "", substring(ObservableKey, indexof(ObservableKey, "hashes.") + 7, strlen(ObservableKey) - indexof(ObservableKey, "hashes.") - 7))
+        | extend FileHashValue = ObservableValue
+        | extend IndicatorId = tostring(split(Id, "--")[2])
+  | where isnotempty(FileHashValue)
+  | where TimeGenerated > ago(ioc_lookBack)
+  //  | where FileHashValue in (Hashes)
+  | summarize LatestIndicatorTime = arg_max(TimeGenerated, *) by Id, ObservableValue
+  | where IsActive and (ValidUntil > now() or isempty(ValidUntil))
+  | extend Description = tostring(parse_json(Data).description)
+  | where Description !contains_cs "State: inactive;" and Description !contains_cs "State: falsepos;"
+    | project-reorder *, FileHashType, FileHashValue, Type
+  | join kind=innerunique (DeviceFileEvents_) on $left.FileHashValue == $right.FileHashValue
+  | where TimeGenerated < ValidUntil
+  | summarize TimeGenerated = arg_max(TimeGenerated, *) by  IndicatorId, DeviceId
+  | extend TrafficLightProtocolLevel = tostring(parse_json(AdditionalFields).TLPLevel)
+  | extend Description = tostring(parse_json(Data).description)
+  | extend ActivityGroupNames = extract(@"ActivityGroup:(\S+)", 1, tostring(parse_json(Data).labels))
+  | project TimeGenerated, TrafficLightProtocolLevel, Description, ActivityGroupNames, IndicatorId, FileHashValue, FileHashType, ValidUntil, Confidence, ActionType, DeviceId, DeviceName, FolderPath, RequestAccountDomain, RequestAccountName, RequestAccountSid, MachineGroup
+  | extend timestamp = TimeGenerated
